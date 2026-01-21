@@ -154,16 +154,18 @@ jobs:
           [ ! -f "$SMT_FILE" ] && { echo "ERROR: SMT file not found"; exit 1; }
           [ -z "$ROOT_HASH" ] && { echo "ERROR: Root hash not found"; exit 1; }
 
-          SMT_DATA=$(cat "$SMT_FILE")
-          REQUEST_BODY=$(jq -n --arg root_hash "$ROOT_HASH" --argjson smt_data "$SMT_DATA" '{root_hash: $root_hash, smt_data: $smt_data}')
+          REQUEST_BODY_FILE=$(mktemp)
+          jq -n --arg root_hash "$ROOT_HASH" --slurpfile smt_data "$SMT_FILE" '{root_hash: $root_hash, smt_data: $smt_data[0]}' > "$REQUEST_BODY_FILE"
 
           echo "Storing SMT with root hash: $ROOT_HASH"
           RESPONSE=$(curl -X POST "$MERKLE_PROOF_SERVICE_URL/store-smt" \
             -H "Content-Type: application/json" \
-            --data-raw "$REQUEST_BODY" \
+            --data @"$REQUEST_BODY_FILE" \
             --max-time 60 \
             --write-out "\nHTTP_CODE:%{http_code}" \
             --silent)
+          
+          rm -f "$REQUEST_BODY_FILE"
 
           HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
           RESPONSE_BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE:/d')
